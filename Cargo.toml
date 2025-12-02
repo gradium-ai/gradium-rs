@@ -1,0 +1,27 @@
+[package]
+name = "gradium"
+version = "0.1.0"
+edition = "2024"
+authors = ["Gradium Team"]
+description = "Rust client library for the Gradium API, providing text-to-speech capabilities"
+documentation = "https://docs.rs/gradium"
+homepage = "https://gradium.ai"
+repository = "https://github.com/gradium-ai/gradium-client-rs"
+license = "MIT OR Apache-2.0"
+keywords = ["tts", "speech", "audio", "gradium", "text-to-speech"]
+categories = ["api-bindings", "multimedia::audio"]
+readme = "README.md"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22.1"
+futures-util = "0.3.31"
+reqwest = { version = "0.12", features = ["json", "stream", "multipart"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.145"
+tokio = { version = "1.35.1", features = ["full", "tracing"] }
+tokio-tungstenite = { version = "0.28.0", features = ["native-tls"] }
+url = "2.5.7"
+
+[dev-dependencies]
+clap = { version = "4.3.7", features = ["derive"] }
