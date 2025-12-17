@@ -261,20 +261,20 @@ pub mod stt {
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     pub struct VadPrediction {
-        horizon_s: f64,
-        inactivity_prob: f64,
+        pub horizon_s: f64,
+        pub inactivity_prob: f64,
     }
 
     /// Voice Activity Detection information.
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     pub struct Vad {
         /// Current step index
-        step_idx: u64,
+        pub step_idx: u64,
         /// Duration of this step in seconds
-        step_duration_s: f64,
+        pub step_duration_s: f64,
         /// Total duration processed in seconds
-        total_duration_s: f64,
-        vad: Vec<VadPrediction>,
+        pub total_duration_s: f64,
+        pub vad: Vec<VadPrediction>,
     }
 
     /// Transcribed text with timing information.
