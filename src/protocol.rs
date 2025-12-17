@@ -259,6 +259,12 @@ pub mod stt {
         EndOfStream,
     }
 
+    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+    pub struct VadPrediction {
+        horizon_s: f64,
+        inactivity_prob: f64,
+    }
+
     /// Voice Activity Detection information.
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     pub struct Vad {
@@ -268,6 +274,7 @@ pub mod stt {
         step_duration_s: f64,
         /// Total duration processed in seconds
         total_duration_s: f64,
+        vad: Vec<VadPrediction>,
     }
 
     /// Transcribed text with timing information.
