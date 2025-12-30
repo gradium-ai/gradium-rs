@@ -4,8 +4,7 @@
 //! Gradium API via WebSocket connections.
 
 /// Audio output format for TTS generation.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone)]
 pub enum AudioFormat {
     /// Raw PCM audio data
     Pcm,
@@ -13,6 +12,38 @@ pub enum AudioFormat {
     Wav,
     /// Opus compressed audio
     Opus,
+    Other(String),
+}
+
+impl<'de> serde::Deserialize<'de> for AudioFormat {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let format = match s.as_str() {
+            "pcm" => AudioFormat::Pcm,
+            "wav" => AudioFormat::Wav,
+            "opus" => AudioFormat::Opus,
+            other => AudioFormat::Other(other.to_string()),
+        };
+        Ok(format)
+    }
+}
+
+impl serde::Serialize for AudioFormat {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let s = match self {
+            AudioFormat::Pcm => "pcm".to_string(),
+            AudioFormat::Wav => "wav".to_string(),
+            AudioFormat::Opus => "opus".to_string(),
+            AudioFormat::Other(other) => other.clone(),
+        };
+        serializer.serialize_str(&s)
+    }
 }
 
 /// Text-to-speech protocol types.
