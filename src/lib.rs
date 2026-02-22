@@ -42,7 +42,7 @@ pub mod tts;
 
 pub use client::Client;
 pub use stt::{SttResult, SttStream, stt, stt_stream};
-pub use tts::{TtsResult, TtsStream, tts, tts_stream};
+pub use tts::{TtsMultiplexStream, TtsResult, TtsStream, tts, tts_stream};
 
 /// Represents text with associated timing information.
 ///

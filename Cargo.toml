@@ -1,6 +1,6 @@
 [package]
 name = "gradium"
-version = "0.1.6"
+version = "0.2.0"
 edition = "2024"
 authors = ["Gradium Team"]
 description = "Rust client library for the Gradium Voice AI API."

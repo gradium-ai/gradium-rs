@@ -395,6 +395,18 @@ impl Client {
         crate::tts::tts_stream(setup, self).await
     }
 
+    /// Opens a multiplexing TTS WebSocket connection.
+    ///
+    /// Returns a `TtsMultiplexStream` that allows sending multiple independent
+    /// TTS requests over a single WebSocket, tracked by `client_req_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the WebSocket connection fails
+    pub async fn tts_multiplex(&self) -> Result<crate::tts::TtsMultiplexStream> {
+        crate::tts::TtsMultiplexStream::connect(self).await
+    }
+
     /// Performs a one-shot speech-to-text transcription.
     ///
     /// This is a convenience method that delegates to [`crate::stt::stt`].

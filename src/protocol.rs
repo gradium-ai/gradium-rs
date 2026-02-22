@@ -64,6 +64,13 @@ pub mod tts {
         /// Custom config for the TTS model in JSON format
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub json_config: Option<String>,
+        /// Optional client request ID for multiplexing multiple requests over a single WebSocket
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
+        /// When true, the server will NOT close the WebSocket after EndOfStream,
+        /// allowing additional requests on the same connection (multiplexing).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub close_ws_on_eos: Option<bool>,
     }
 
     impl Default for Setup {
@@ -74,6 +81,8 @@ pub mod tts {
                 voice_id: None,
                 output_format: super::AudioFormat::Pcm,
                 json_config: None,
+                client_req_id: None,
+                close_ws_on_eos: None,
             }
         }
     }
@@ -103,6 +112,19 @@ pub mod tts {
             self.json_config = Some(json_config.to_string());
             self
         }
+
+        /// Sets the client request ID for multiplexing.
+        pub fn with_client_req_id(mut self, client_req_id: &str) -> Self {
+            self.client_req_id = Some(client_req_id.to_string());
+            self
+        }
+
+        /// Sets close_ws_on_eos. When `false`, the server keeps the WebSocket open
+        /// after EndOfStream, enabling multiplexing.
+        pub fn with_close_ws_on_eos(mut self, close: bool) -> Self {
+            self.close_ws_on_eos = Some(close);
+            self
+        }
     }
 
     /// Text to be synthesized into speech.
@@ -110,6 +132,9 @@ pub mod tts {
     pub struct Text {
         /// The text content to synthesize
         pub text: String,
+        /// Optional client request ID for multiplexing
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Client-to-server request messages.
@@ -121,7 +146,11 @@ pub mod tts {
         /// Send text to be synthesized
         Text(Text),
         /// Signal end of input stream
-        EndOfStream,
+        EndOfStream {
+            /// Optional client request ID for multiplexing
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
+        },
     }
 
     /// Server response indicating the session is ready.
@@ -139,6 +168,9 @@ pub mod tts {
         pub text_stream_names: Vec<String>,
         /// Optional request ID for tracking
         pub request_id: String,
+        /// Optional client request ID for multiplexing
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Audio data response from the server.
@@ -152,6 +184,9 @@ pub mod tts {
         pub stop_s: f64,
         /// Stream identifier
         pub stream_id: u32,
+        /// Optional client request ID for multiplexing
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     impl Audio {
@@ -182,6 +217,9 @@ pub mod tts {
         pub stop_s: f64,
         /// Stream identifier
         pub stream_id: u32,
+        /// Optional client request ID for multiplexing
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Server-to-client response messages.
@@ -200,9 +238,16 @@ pub mod tts {
             code: Option<i64>,
             /// Error message
             message: String,
+            /// Optional client request ID for multiplexing
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
         },
         /// End of output stream
-        EndOfStream,
+        EndOfStream {
+            /// Optional client request ID for multiplexing
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
+        },
     }
 }
 
