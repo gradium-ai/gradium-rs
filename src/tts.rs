@@ -90,7 +90,7 @@ impl TtsStream {
         let first_msg: p::Response = serde_json::from_str(&first_msg)?;
         let ready = match first_msg {
             p::Response::Ready(ready) => ready,
-            p::Response::Error { code, message } => {
+            p::Response::Error { code, message, .. } => {
                 anyhow::bail!("error from server {code:?}: {message}")
             }
             _ => anyhow::bail!("unexpected first message from server: {:?}", first_msg),
@@ -109,7 +109,7 @@ impl TtsStream {
     pub async fn send_eos(&mut self) -> Result<()> {
         use futures_util::SinkExt;
 
-        let req = p::Request::EndOfStream;
+        let req = p::Request::EndOfStream { client_req_id: None };
         let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
@@ -129,7 +129,7 @@ impl TtsStream {
     pub async fn send_text(&mut self, text: &str) -> Result<()> {
         use futures_util::SinkExt;
 
-        let req = p::Request::Text(p::Text { text: text.to_string() });
+        let req = p::Request::Text(p::Text { text: text.to_string(), client_req_id: None });
         let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
@@ -160,8 +160,8 @@ impl TtsStream {
         let msg: p::Response = serde_json::from_str(&msg)?;
 
         match &msg {
-            p::Response::EndOfStream => return Ok(None),
-            p::Response::Error { code, message } => {
+            p::Response::EndOfStream { .. } => return Ok(None),
+            p::Response::Error { code, message, .. } => {
                 anyhow::bail!("error from server {code:?}: {message}")
             }
             _ => {}
@@ -242,7 +242,7 @@ impl TtsStreamSender {
     pub async fn send_eos(&mut self) -> Result<()> {
         use futures_util::SinkExt;
 
-        let req = p::Request::EndOfStream;
+        let req = p::Request::EndOfStream { client_req_id: None };
         let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
@@ -262,7 +262,7 @@ impl TtsStreamSender {
     pub async fn send_text(&mut self, text: &str) -> Result<()> {
         use futures_util::SinkExt;
 
-        let req = p::Request::Text(p::Text { text: text.to_string() });
+        let req = p::Request::Text(p::Text { text: text.to_string(), client_req_id: None });
         let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
@@ -295,8 +295,8 @@ impl TtsStreamReceiver {
         let msg: p::Response = serde_json::from_str(&msg)?;
 
         match &msg {
-            p::Response::EndOfStream => return Ok(None),
-            p::Response::Error { code, message } => {
+            p::Response::EndOfStream { .. } => return Ok(None),
+            p::Response::Error { code, message, .. } => {
                 anyhow::bail!("error from server {code:?}: {message}")
             }
             _ => {}
@@ -372,6 +372,174 @@ pub async fn tts(text: &str, setup: p::Setup, client: &Client) -> Result<TtsResu
         request_id: stream.request_id().to_string(),
         sample_rate: stream.sample_rate(),
     })
+}
+
+/// A multiplexing TTS session over a single WebSocket connection.
+///
+/// Unlike `TtsStream`, this type allows sending multiple independent TTS requests
+/// (each with its own `client_req_id`) over a single WebSocket. The caller is
+/// responsible for routing responses by inspecting `client_req_id` on each message.
+///
+/// Key differences from `TtsStream`:
+/// - `next_message()` returns `EndOfStream` and `Error` as values (not `None`/`Err`),
+///   so the caller can read `client_req_id` to know which request finished.
+/// - Returns `Ok(None)` only when the WebSocket itself closes.
+/// - No `Ready` is stored — each `send_setup()` gets its own `Ready` response.
+#[derive(Debug)]
+pub struct TtsMultiplexStream {
+    ws: WebSocket,
+}
+
+/// Sender half of a split `TtsMultiplexStream`.
+#[derive(Debug)]
+pub struct TtsMultiplexSender {
+    ws: crate::client::WebSocketSender,
+}
+
+/// Receiver half of a split `TtsMultiplexStream`.
+#[derive(Debug)]
+pub struct TtsMultiplexReceiver {
+    ws: crate::client::WebSocketReceiver,
+}
+
+impl TtsMultiplexStream {
+    /// Opens a multiplexing WebSocket connection without sending Setup.
+    pub async fn connect(client: &Client) -> Result<Self> {
+        let ws = client.ws_connect("speech/tts").await?;
+        Ok(Self { ws })
+    }
+
+    /// Sends a Setup message for a new multiplexed request.
+    ///
+    /// The setup must have `client_req_id` set (to route responses) and
+    /// `close_ws_on_eos` set to `false` (to keep the connection open for
+    /// subsequent requests). Returns an error if either is misconfigured.
+    pub async fn send_setup(&mut self, setup: p::Setup) -> Result<()> {
+        use futures_util::SinkExt;
+
+        if setup.client_req_id.is_none() {
+            anyhow::bail!("client_req_id must be set for multiplexed requests");
+        }
+        if setup.close_ws_on_eos != Some(false) {
+            anyhow::bail!("close_ws_on_eos must be set to false for multiplexed requests");
+        }
+        let req = serde_json::to_string(&p::Request::Setup(setup))?;
+        self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
+        Ok(())
+    }
+
+    /// Sends text to be synthesized, tagged with a `client_req_id`.
+    pub async fn send_text(&mut self, text: &str, client_req_id: &str) -> Result<()> {
+        use futures_util::SinkExt;
+
+        let req = p::Request::Text(p::Text {
+            text: text.to_string(),
+            client_req_id: Some(client_req_id.to_string()),
+        });
+        let req = serde_json::to_string(&req)?;
+        self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
+        Ok(())
+    }
+
+    /// Signals end-of-stream for a specific request.
+    pub async fn send_eos(&mut self, client_req_id: &str) -> Result<()> {
+        use futures_util::SinkExt;
+
+        let req = p::Request::EndOfStream {
+            client_req_id: Some(client_req_id.to_string()),
+        };
+        let req = serde_json::to_string(&req)?;
+        self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
+        Ok(())
+    }
+
+    /// Receives the next message from the server.
+    ///
+    /// Unlike `TtsStream::next_message()`, this returns `EndOfStream` and `Error`
+    /// as `Ok(Some(response))` values so the caller can inspect `client_req_id`.
+    /// Returns `Ok(None)` only when the WebSocket connection itself closes, which
+    /// is not expected during normal operation — typically only on the server's
+    /// 5-minute inactivity timeout.
+    pub async fn next_message(&mut self) -> Result<Option<p::Response>> {
+        let msg = crate::client::next_message(&mut self.ws).await?;
+        let msg = match msg {
+            None => return Ok(None),
+            Some(m) => m,
+        };
+        let msg: p::Response = serde_json::from_str(&msg)?;
+        Ok(Some(msg))
+    }
+
+    /// Splits into sender and receiver halves for concurrent use with `tokio::spawn`.
+    pub fn split(self) -> (TtsMultiplexSender, TtsMultiplexReceiver) {
+        use futures_util::StreamExt;
+        let (ws_tx, ws_rx) = self.ws.split();
+        (TtsMultiplexSender { ws: ws_tx }, TtsMultiplexReceiver { ws: ws_rx })
+    }
+}
+
+impl TtsMultiplexSender {
+    /// Sends a Setup message for a new multiplexed request.
+    ///
+    /// The setup must have `client_req_id` set (to route responses) and
+    /// `close_ws_on_eos` set to `false` (to keep the connection open for
+    /// subsequent requests). Returns an error if either is misconfigured.
+    pub async fn send_setup(&mut self, setup: p::Setup) -> Result<()> {
+        use futures_util::SinkExt;
+
+        if setup.client_req_id.is_none() {
+            anyhow::bail!("client_req_id must be set for multiplexed requests");
+        }
+        if setup.close_ws_on_eos != Some(false) {
+            anyhow::bail!("close_ws_on_eos must be set to false for multiplexed requests");
+        }
+        let req = serde_json::to_string(&p::Request::Setup(setup))?;
+        self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
+        Ok(())
+    }
+
+    /// Sends text to be synthesized, tagged with a `client_req_id`.
+    pub async fn send_text(&mut self, text: &str, client_req_id: &str) -> Result<()> {
+        use futures_util::SinkExt;
+
+        let req = p::Request::Text(p::Text {
+            text: text.to_string(),
+            client_req_id: Some(client_req_id.to_string()),
+        });
+        let req = serde_json::to_string(&req)?;
+        self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
+        Ok(())
+    }
+
+    /// Signals end-of-stream for a specific request.
+    pub async fn send_eos(&mut self, client_req_id: &str) -> Result<()> {
+        use futures_util::SinkExt;
+
+        let req = p::Request::EndOfStream {
+            client_req_id: Some(client_req_id.to_string()),
+        };
+        let req = serde_json::to_string(&req)?;
+        self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
+        Ok(())
+    }
+}
+
+impl TtsMultiplexReceiver {
+    /// Receives the next message from the server.
+    ///
+    /// Returns `EndOfStream` and `Error` as values (not `None`/`Err`).
+    /// Returns `Ok(None)` only when the WebSocket connection itself closes, which
+    /// is not expected during normal operation — typically only on the server's
+    /// 5-minute inactivity timeout.
+    pub async fn next_message(&mut self) -> Result<Option<p::Response>> {
+        let msg = crate::client::next_message_receiver(&mut self.ws).await?;
+        let msg = match msg {
+            None => return Ok(None),
+            Some(m) => m,
+        };
+        let msg: p::Response = serde_json::from_str(&msg)?;
+        Ok(Some(msg))
+    }
 }
 
 /// Creates a new TTS stream for real-time text-to-speech.
