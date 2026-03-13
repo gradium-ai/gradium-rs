@@ -16,8 +16,9 @@
 //!     let setup = Setup::new("m86j6D7UZpGzHsNu").with_output_format(AudioFormat::Wav);
 //!
 //!     let result = gradium::tts("Hello, world!", setup, &client).await?;
-//!     println!("Generated {} bytes of audio", result.raw_data().len());
-//!
+//!     let filename = "output.wav";
+//!     std::fs::write(filename, result.raw_data())?;
+//!     println!("Generated {} bytes of audio and saved to {}", result.raw_data().len(), filename);
 //!     Ok(())
 //! }
 //! ```
@@ -41,7 +42,7 @@ pub mod tts;
 
 pub use client::Client;
 pub use stt::{SttResult, SttStream, stt, stt_stream};
-pub use tts::{TtsResult, TtsStream, tts, tts_stream};
+pub use tts::{TtsMultiplexStream, TtsResult, TtsStream, tts, tts_stream};
 
 /// Represents text with associated timing information.
 ///
