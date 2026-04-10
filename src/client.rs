@@ -26,6 +26,7 @@ pub struct Client {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Location {
+    Default,
     EU,
     US,
 }
@@ -33,6 +34,7 @@ pub enum Location {
 impl Location {
     pub fn as_str(&self) -> &'static str {
         match self {
+            Location::Default => "default",
             Location::EU => "eu",
             Location::US => "us",
         }
@@ -40,6 +42,7 @@ impl Location {
 
     pub fn server_addr(&self) -> &'static str {
         match self {
+            Location::Default => "api.gradium.ai",
             Location::EU => "eu.api.gradium.ai",
             Location::US => "us.api.gradium.ai",
         }
@@ -78,7 +81,7 @@ impl Client {
     /// let client = Client::new("your-api-key");
     /// ```
     pub fn new(api_key: &str) -> Self {
-        Self::from_location(api_key, Location::EU)
+        Self::from_location(api_key, Location::Default)
     }
 
     /// Creates a new client for the US production Gradium API endpoint.
@@ -207,7 +210,7 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `server_addr` - The server address (e.g., "eu.api.gradium.ai")
+    /// * `server_addr` - The server address (e.g., "api.gradium.ai")
     ///
     /// # Example
     ///
@@ -266,7 +269,7 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `base_url` - Complete base URL (e.g., "https://eu.api.gradium.ai/api")
+    /// * `base_url` - Complete base URL (e.g., "https://api.gradium.ai/api")
     ///
     /// # Returns
     ///
