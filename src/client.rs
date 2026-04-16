@@ -12,6 +12,8 @@ pub type WebSocket =
 pub type WebSocketSender = futures_util::stream::SplitSink<WebSocket, ws::Message>;
 pub type WebSocketReceiver = futures_util::stream::SplitStream<WebSocket>;
 
+pub const DEFAULT_API_SOURCE: &str = "rust-client";
+
 /// Client for interacting with the Gradium API.
 ///
 /// The client handles authentication and WebSocket connection management.
@@ -19,6 +21,7 @@ pub type WebSocketReceiver = futures_util::stream::SplitStream<WebSocket>;
 pub struct Client {
     api_key: String,
     server_addr: String,
+    api_source: Option<String>,
     use_https: bool,
     path: String,
     additional_headers: Vec<(String, String)>,
@@ -64,6 +67,7 @@ impl Client {
             use_https: true,
             path: "api".to_string(),
             additional_headers: Vec::new(),
+            api_source: None,
         }
     }
 
@@ -104,6 +108,7 @@ impl Client {
             use_https: true,
             path: "api".to_string(),
             additional_headers: Vec::new(),
+            api_source: None,
         }
     }
 
@@ -127,12 +132,18 @@ impl Client {
             use_https: true,
             path: "api".to_string(),
             additional_headers: Vec::new(),
+            api_source: None,
         }
     }
 
     /// Adds an additional HTTP header to be sent with each request (builder pattern).
     pub fn with_additional_header(mut self, key: &str, value: &str) -> Self {
         self.additional_headers.push((key.to_string(), value.to_string()));
+        self
+    }
+
+    pub fn with_api_source(mut self, api_source: String) -> Self {
+        self.api_source = Some(api_source);
         self
     }
 
@@ -349,7 +360,8 @@ impl Client {
         let mut request = url.into_client_request()?;
         let headers = request.headers_mut();
         headers.insert("x-api-key", HeaderValue::from_str(&self.api_key)?);
-        headers.insert("x-api-source", HeaderValue::from_str("rust-client")?);
+        let api_source = self.api_source.as_deref().unwrap_or(DEFAULT_API_SOURCE);
+        headers.insert("x-api-source", HeaderValue::from_str(api_source)?);
         for (key, value) in self.additional_headers.iter() {
             let key = ws::http::header::HeaderName::from_bytes(key.as_bytes())?;
             headers.insert(key, HeaderValue::from_str(value.as_str())?);
@@ -451,10 +463,11 @@ impl Client {
 
     pub(crate) async fn get(&self, endpoint: &str) -> Result<serde_json::Value> {
         let url = self.http_url(endpoint);
+        let api_source = self.api_source.as_deref().unwrap_or(DEFAULT_API_SOURCE);
         let response = reqwest::Client::new()
             .get(&url)
             .header("x-api-key", &self.api_key)
-            .header("x-api-source", "rust-client")
+            .header("x-api-source", api_source)
             .send()
             .await?;
         let response = response.error_for_status()?;
