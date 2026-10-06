@@ -77,6 +77,10 @@ async fn main() -> Result<()> {
                     let id = client_req_id.as_deref().unwrap_or("unknown");
                     eprintln!("[{id}] error {code:?}: {message}");
                 }
+                Response::Flushed { client_req_id } => {
+                    let id = client_req_id.as_deref().unwrap_or("unknown");
+                    println!("[{id}] flushed");
+                }
                 Response::NeedMoreText { client_req_id } => {
                     let id = client_req_id.as_deref().unwrap_or("unknown");
                     println!("[{id}] need more text");
