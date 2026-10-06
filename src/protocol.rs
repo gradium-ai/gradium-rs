@@ -268,6 +268,9 @@ pub mod tts {
             #[serde(default, skip_serializing_if = "Option::is_none")]
             client_req_id: Option<String>,
         },
+        /// A response type unsupported by this SDK version.
+        #[serde(other)]
+        Unknown,
     }
 }
 

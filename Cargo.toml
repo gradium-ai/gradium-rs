@@ -22,6 +22,7 @@ serde_json = "1.0.145"
 tokio = { version = "1.35.1", features = ["full", "tracing"] }
 tokio-tungstenite = { version = "0.28.0", default-features = false }
 url = "2.5.7"
+tracing = "0.1"
 
 [features]
 default = ["native-tls"]
@@ -29,4 +30,5 @@ native-tls = ["reqwest/native-tls", "tokio-tungstenite/connect", "tokio-tungsten
 rustls = ["reqwest/rustls", "tokio-tungstenite/connect", "tokio-tungstenite/rustls-tls-webpki-roots"]
 
 [dev-dependencies]
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
 clap = { version = "4.3.7", features = ["derive"] }

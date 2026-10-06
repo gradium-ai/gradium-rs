@@ -1,6 +1,22 @@
+use std::sync::{Arc, Mutex};
+
 use futures_util::{SinkExt, StreamExt};
 use gradium::{Client, protocol::tts};
 use tokio_tungstenite::tungstenite::Message;
+
+#[derive(Clone)]
+struct LogBuffer(Arc<Mutex<Vec<u8>>>);
+
+impl std::io::Write for LogBuffer {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(data);
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
 
 #[test]
 fn flushed_preserves_optional_request_identity() {
@@ -18,6 +34,14 @@ fn flushed_preserves_optional_request_identity() {
 
 #[tokio::test]
 async fn one_shot_tts_keeps_audio_before_and_after_flush() -> anyhow::Result<()> {
+    let logs = LogBuffer(Arc::new(Mutex::new(Vec::new())));
+    let writer = logs.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .without_time()
+        .with_ansi(false)
+        .with_writer(move || writer.clone())
+        .finish();
+    let _logging = tracing::subscriber::set_default(subscriber);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
     let server = tokio::spawn(async move {
@@ -25,6 +49,8 @@ async fn one_shot_tts_keeps_audio_before_and_after_flush() -> anyhow::Result<()>
         let mut ws = tokio_tungstenite::accept_async(socket).await?;
         let setup = ws.next().await.unwrap()?.into_text()?;
         assert_eq!(serde_json::from_str::<serde_json::Value>(&setup)?["type"], "setup");
+        ws.send(Message::Text(serde_json::json!({"type":"future_setup_event"}).to_string().into()))
+            .await?;
         ws.send(Message::Text(
             serde_json::json!({
                 "type": "ready", "model_name": "default", "sample_rate": 24000,
@@ -46,6 +72,7 @@ async fn one_shot_tts_keeps_audio_before_and_after_flush() -> anyhow::Result<()>
             serde_json::json!({"type": "audio", "audio": "AQI=", "start_s": 0.0,
                               "stop_s": 1.0, "stream_id": 0}),
             serde_json::json!({"type": "flushed"}),
+            serde_json::json!({"type": "future_audio_event", "payload": {"new": true}}),
             serde_json::json!({"type": "audio", "audio": "AwQ=", "start_s": 1.0,
                               "stop_s": 2.0, "stream_id": 0}),
             serde_json::json!({"type": "end_of_stream"}),
@@ -65,5 +92,31 @@ async fn one_shot_tts_keeps_audio_before_and_after_flush() -> anyhow::Result<()>
     assert_eq!(result.sample_rate(), 24000);
     assert_eq!(result.request_id(), "flush-test");
     server.await??;
+    let warnings = String::from_utf8(logs.0.lock().unwrap().clone())?;
+    assert!(warnings.contains("WARN"));
+    assert!(warnings.contains("future_setup_event"));
+    assert!(warnings.contains("future_audio_event"));
+    assert!(!warnings.contains("payload"));
     Ok(())
+}
+
+#[test]
+fn unknown_response_types_default_to_unknown_but_known_malformed_messages_fail() {
+    for value in [
+        serde_json::json!({"type": "future_event"}),
+        serde_json::json!({"type": "stats", "json_stats": "{}", "client_req_id": "request-1"}),
+    ] {
+        assert!(matches!(
+            serde_json::from_value::<tts::Response>(value).unwrap(),
+            tts::Response::Unknown
+        ));
+    }
+    for value in [
+        serde_json::json!({"type": "audio"}),
+        serde_json::json!({"type": "ready"}),
+        serde_json::json!({}),
+        serde_json::json!({"type": 42}),
+    ] {
+        assert!(serde_json::from_value::<tts::Response>(value).is_err());
+    }
 }
