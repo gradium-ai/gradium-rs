@@ -52,6 +52,7 @@ async fn main() -> Result<()> {
 
         while let Some(msg) = rx.next_message().await? {
             match msg {
+                Response::Unknown => {}
                 Response::Ready(ready) => {
                     let id = ready.client_req_id.as_deref().unwrap_or("unknown");
                     println!("[{id}] ready, request_id={}", ready.request_id);
@@ -76,6 +77,10 @@ async fn main() -> Result<()> {
                 Response::Error { code, message, client_req_id } => {
                     let id = client_req_id.as_deref().unwrap_or("unknown");
                     eprintln!("[{id}] error {code:?}: {message}");
+                }
+                Response::Flushed { client_req_id } => {
+                    let id = client_req_id.as_deref().unwrap_or("unknown");
+                    println!("[{id}] flushed");
                 }
                 Response::NeedMoreText { client_req_id } => {
                     let id = client_req_id.as_deref().unwrap_or("unknown");

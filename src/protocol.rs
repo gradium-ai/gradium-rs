@@ -257,11 +257,20 @@ pub mod tts {
             #[serde(default, skip_serializing_if = "Option::is_none")]
             client_req_id: Option<String>,
         },
+        /// Audio generated before a flush boundary has been emitted.
+        Flushed {
+            /// Optional client request ID for multiplexing.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
+        },
         NeedMoreText {
             /// Optional client request ID for multiplexing
             #[serde(default, skip_serializing_if = "Option::is_none")]
             client_req_id: Option<String>,
         },
+        /// A response type unsupported by this SDK version.
+        #[serde(other)]
+        Unknown,
     }
 }
 
