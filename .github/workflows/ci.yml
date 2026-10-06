@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check (${{ matrix.tls }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        tls: [native-tls, rustls]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Build all targets
+        run: cargo build --locked --all-targets --no-default-features --features "$TLS_FEATURE"
+        env:
+          TLS_FEATURE: ${{ matrix.tls }}
+      - name: Lint all targets
+        run: cargo clippy --locked --all-targets --no-default-features --features "$TLS_FEATURE" -- -D warnings
+        env:
+          TLS_FEATURE: ${{ matrix.tls }}
+      - name: Test
+        run: cargo test --locked --all-targets --no-default-features --features "$TLS_FEATURE"
+        env:
+          TLS_FEATURE: ${{ matrix.tls }}
+      - name: Test documentation
+        run: cargo test --locked --doc --no-default-features --features "$TLS_FEATURE"
+        env:
+          TLS_FEATURE: ${{ matrix.tls }}
