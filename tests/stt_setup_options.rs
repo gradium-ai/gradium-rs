@@ -115,3 +115,28 @@ fn default_setup_preserves_server_defaults() {
     assert!(setup.close_ws_on_eos.is_none());
     assert!(setup.client_req_id.is_none());
 }
+
+#[test]
+fn request_types_round_trip_with_optional_correlation() {
+    for request in [
+        json!({"type":"audio", "audio":"AQI="}),
+        json!({"type":"flush", "flush_id":42}),
+        json!({"type":"end_of_stream"}),
+    ] {
+        for client_req_id in [None, Some("request")] {
+            let mut expected = request.clone();
+            if let Some(client_req_id) = client_req_id {
+                expected["client_req_id"] = json!(client_req_id);
+            }
+            let parsed: stt::Request = serde_json::from_value(expected.clone()).unwrap();
+            let actual_client_req_id = match &parsed {
+                stt::Request::Audio(audio) => audio.client_req_id.as_deref(),
+                stt::Request::Flush { client_req_id, .. }
+                | stt::Request::EndOfStream { client_req_id } => client_req_id.as_deref(),
+                stt::Request::Setup(_) => panic!("unexpected setup"),
+            };
+            assert_eq!(actual_client_req_id, client_req_id);
+            assert_eq!(serde_json::to_value(parsed).unwrap(), expected);
+        }
+    }
+}

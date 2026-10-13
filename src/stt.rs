@@ -100,8 +100,8 @@ impl SttStream {
     pub async fn send_eos(&mut self) -> Result<()> {
         use futures_util::SinkExt;
 
-        let req = p::Request::EndOfStream;
-        let req = serialize_request(&req, self.client_req_id.as_deref())?;
+        let req = p::Request::EndOfStream { client_req_id: self.client_req_id.clone() };
+        let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
     }
@@ -124,8 +124,8 @@ impl SttStream {
 
         // Base 64 encode the audio data
         let audio = base64::engine::general_purpose::STANDARD.encode(&audio);
-        let req = p::Request::Audio(p::Audio { audio });
-        let req = serialize_request(&req, self.client_req_id.as_deref())?;
+        let req = p::Request::Audio(p::Audio { audio, client_req_id: self.client_req_id.clone() });
+        let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
     }
@@ -135,8 +135,8 @@ impl SttStream {
     pub async fn send_flush(&mut self, flush_id: i64) -> Result<()> {
         use futures_util::SinkExt;
 
-        let req =
-            serialize_request(&p::Request::Flush { flush_id }, self.client_req_id.as_deref())?;
+        let req = p::Request::Flush { flush_id, client_req_id: self.client_req_id.clone() };
+        let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
     }
@@ -144,8 +144,11 @@ impl SttStream {
     pub async fn send_audio_base64(&mut self, audio_b64: String) -> Result<()> {
         use futures_util::SinkExt;
 
-        let req = p::Request::Audio(p::Audio { audio: audio_b64 });
-        let req = serialize_request(&req, self.client_req_id.as_deref())?;
+        let req = p::Request::Audio(p::Audio {
+            audio: audio_b64,
+            client_req_id: self.client_req_id.clone(),
+        });
+        let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
     }
@@ -317,8 +320,8 @@ impl SttStreamSender {
     pub async fn send_eos(&mut self) -> Result<()> {
         use futures_util::SinkExt;
 
-        let req = p::Request::EndOfStream;
-        let req = serialize_request(&req, self.client_req_id.as_deref())?;
+        let req = p::Request::EndOfStream { client_req_id: self.client_req_id.clone() };
+        let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
     }
@@ -341,8 +344,8 @@ impl SttStreamSender {
 
         // Base 64 encode the audio data
         let audio = base64::engine::general_purpose::STANDARD.encode(&audio);
-        let req = p::Request::Audio(p::Audio { audio });
-        let req = serialize_request(&req, self.client_req_id.as_deref())?;
+        let req = p::Request::Audio(p::Audio { audio, client_req_id: self.client_req_id.clone() });
+        let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
     }
@@ -352,8 +355,8 @@ impl SttStreamSender {
     pub async fn send_flush(&mut self, flush_id: i64) -> Result<()> {
         use futures_util::SinkExt;
 
-        let req =
-            serialize_request(&p::Request::Flush { flush_id }, self.client_req_id.as_deref())?;
+        let req = p::Request::Flush { flush_id, client_req_id: self.client_req_id.clone() };
+        let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
     }
@@ -361,8 +364,11 @@ impl SttStreamSender {
     pub async fn send_audio_base64(&mut self, audio_b64: String) -> Result<()> {
         use futures_util::SinkExt;
 
-        let req = p::Request::Audio(p::Audio { audio: audio_b64 });
-        let req = serialize_request(&req, self.client_req_id.as_deref())?;
+        let req = p::Request::Audio(p::Audio {
+            audio: audio_b64,
+            client_req_id: self.client_req_id.clone(),
+        });
+        let req = serde_json::to_string(&req)?;
         self.ws.send(tokio_tungstenite::tungstenite::Message::Text(req.into())).await?;
         Ok(())
     }
@@ -447,16 +453,4 @@ impl SttStreamReceiver {
 /// ```
 pub async fn stt_stream(setup: p::Setup, client: &Client) -> Result<SttStream> {
     SttStream::new(setup, client).await
-}
-
-fn serialize_request(request: &p::Request, client_req_id: Option<&str>) -> Result<String> {
-    #[derive(serde::Serialize)]
-    struct CorrelatedRequest<'a> {
-        #[serde(flatten)]
-        request: &'a p::Request,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        client_req_id: Option<&'a str>,
-    }
-
-    Ok(serde_json::to_string(&CorrelatedRequest { request, client_req_id })?)
 }

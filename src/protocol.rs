@@ -425,6 +425,9 @@ pub mod stt {
     pub struct Audio {
         /// Raw audio data bytes, base64 encoded.
         pub audio: String,
+        /// Client-supplied request identifier.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Client-to-server request messages.
@@ -439,9 +442,16 @@ pub mod stt {
         Flush {
             /// Identifier echoed by the flush acknowledgment.
             flush_id: i64,
+            /// Client-supplied request identifier.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
         },
         /// Signal end of audio input stream
-        EndOfStream,
+        EndOfStream {
+            /// Client-supplied request identifier.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
+        },
     }
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
