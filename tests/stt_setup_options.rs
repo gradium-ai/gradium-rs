@@ -78,7 +78,7 @@ async fn setup_audio_flush_and_eos_round_trip() -> anyhow::Result<()> {
                     sender.send_eos().await?;
                     assert!(matches!(
                         receiver.next_message().await?,
-                        Some(stt::Response::Flushed { flush_id: 42 })
+                        Some(stt::Response::Flushed { flush_id: 42, .. })
                     ));
                     assert!(matches!(receiver.next_message().await?, Some(stt::Response::Text(_))));
                     assert!(receiver.next_message().await?.is_none());
@@ -90,7 +90,7 @@ async fn setup_audio_flush_and_eos_round_trip() -> anyhow::Result<()> {
                     stream.send_eos().await?;
                     assert!(matches!(
                         stream.next_message().await?,
-                        Some(stt::Response::Flushed { flush_id: 42 })
+                        Some(stt::Response::Flushed { flush_id: 42, .. })
                     ));
                     assert!(matches!(stream.next_message().await?, Some(stt::Response::Text(_))));
                     assert!(stream.next_message().await?.is_none());

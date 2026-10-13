@@ -81,7 +81,7 @@ impl SttStream {
         let first_msg: p::Response = serde_json::from_str(&first_msg)?;
         let ready = match first_msg {
             p::Response::Ready(ready) => ready,
-            p::Response::Error { code, message } => {
+            p::Response::Error { code, message, .. } => {
                 anyhow::bail!("error from server {code}: {message}")
             }
             _ => anyhow::bail!("unexpected first message from server: {:?}", first_msg),
@@ -179,8 +179,8 @@ impl SttStream {
         let msg: p::Response = serde_json::from_str(&msg)?;
 
         match &msg {
-            p::Response::EndOfStream => return Ok(None),
-            p::Response::Error { code, message } => {
+            p::Response::EndOfStream { .. } => return Ok(None),
+            p::Response::Error { code, message, .. } => {
                 anyhow::bail!("error from server {code}: {message}")
             }
             _ => {}
@@ -401,8 +401,8 @@ impl SttStreamReceiver {
         let msg: p::Response = serde_json::from_str(&msg)?;
 
         match &msg {
-            p::Response::EndOfStream => return Ok(None),
-            p::Response::Error { code, message } => {
+            p::Response::EndOfStream { .. } => return Ok(None),
+            p::Response::Error { code, message, .. } => {
                 anyhow::bail!("error from server {code}: {message}")
             }
             _ => {}
@@ -453,4 +453,138 @@ impl SttStreamReceiver {
 /// ```
 pub async fn stt_stream(setup: p::Setup, client: &Client) -> Result<SttStream> {
     SttStream::new(setup, client).await
+}
+
+/// Multiple ASR requests sharing a WebSocket, routed by `client_req_id`.
+#[derive(Debug)]
+pub struct SttMultiplexStream {
+    sender: SttMultiplexSender,
+    receiver: SttMultiplexReceiver,
+}
+
+/// Sender half of a multiplexed ASR connection.
+#[derive(Debug)]
+pub struct SttMultiplexSender {
+    ws: crate::client::WebSocketSender,
+}
+
+/// Receiver half of a multiplexed ASR connection.
+#[derive(Debug)]
+pub struct SttMultiplexReceiver {
+    ws: crate::client::WebSocketReceiver,
+}
+
+impl SttMultiplexStream {
+    /// Opens the connection without sending setup or waiting for a ready response.
+    pub async fn connect(client: &Client) -> Result<Self> {
+        use futures_util::StreamExt;
+
+        let ws = client.ws_connect("speech/asr").await?;
+        let (sender, receiver) = ws.split();
+        Ok(Self {
+            sender: SttMultiplexSender { ws: sender },
+            receiver: SttMultiplexReceiver { ws: receiver },
+        })
+    }
+
+    /// Starts a logical request with an ID and `close_ws_on_eos` set to false.
+    pub async fn send_setup(&mut self, setup: p::Setup) -> Result<()> {
+        self.sender.send_setup(setup).await
+    }
+
+    /// Sends raw audio for the identified request.
+    pub async fn send_audio(&mut self, audio: Vec<u8>, client_req_id: &str) -> Result<()> {
+        self.sender.send_audio(audio, client_req_id).await
+    }
+
+    /// Sends base64-encoded audio for the identified request.
+    pub async fn send_audio_base64(&mut self, audio: String, client_req_id: &str) -> Result<()> {
+        self.sender.send_audio_base64(audio, client_req_id).await
+    }
+
+    /// Flushes pending transcription for the identified request.
+    pub async fn send_flush(&mut self, flush_id: i64, client_req_id: &str) -> Result<()> {
+        self.sender.send_flush(flush_id, client_req_id).await
+    }
+
+    /// Ends input for the identified request while keeping the connection open.
+    pub async fn send_eos(&mut self, client_req_id: &str) -> Result<()> {
+        self.sender.send_eos(client_req_id).await
+    }
+
+    /// Returns all responses, including request errors and EOS, for caller routing.
+    /// Returns `None` only when the WebSocket itself closes.
+    pub async fn next_message(&mut self) -> Result<Option<p::Response>> {
+        self.receiver.next_message().await
+    }
+
+    /// Separates sending and receiving for concurrent use.
+    pub fn split(self) -> (SttMultiplexSender, SttMultiplexReceiver) {
+        (self.sender, self.receiver)
+    }
+}
+
+impl SttMultiplexSender {
+    /// Starts a logical request with an ID and `close_ws_on_eos` set to false.
+    pub async fn send_setup(&mut self, setup: p::Setup) -> Result<()> {
+        if setup.client_req_id.is_none() {
+            anyhow::bail!("client_req_id must be set for multiplexed requests");
+        }
+        if setup.close_ws_on_eos != Some(false) {
+            anyhow::bail!("close_ws_on_eos must be set to false for multiplexed requests");
+        }
+        self.send_request(p::Request::Setup(setup)).await
+    }
+
+    /// Sends raw audio for the identified request.
+    pub async fn send_audio(&mut self, audio: Vec<u8>, client_req_id: &str) -> Result<()> {
+        use base64::prelude::*;
+
+        self.send_audio_base64(BASE64_STANDARD.encode(audio), client_req_id).await
+    }
+
+    /// Sends base64-encoded audio for the identified request.
+    pub async fn send_audio_base64(&mut self, audio: String, client_req_id: &str) -> Result<()> {
+        self.send_request(p::Request::Audio(p::Audio {
+            audio,
+            client_req_id: Some(client_req_id.to_string()),
+        }))
+        .await
+    }
+
+    /// Flushes pending transcription for the identified request.
+    pub async fn send_flush(&mut self, flush_id: i64, client_req_id: &str) -> Result<()> {
+        self.send_request(p::Request::Flush {
+            flush_id,
+            client_req_id: Some(client_req_id.to_string()),
+        })
+        .await
+    }
+
+    /// Ends input for the identified request while keeping the connection open.
+    pub async fn send_eos(&mut self, client_req_id: &str) -> Result<()> {
+        self.send_request(p::Request::EndOfStream {
+            client_req_id: Some(client_req_id.to_string()),
+        })
+        .await
+    }
+
+    async fn send_request(&mut self, request: p::Request) -> Result<()> {
+        use futures_util::SinkExt;
+
+        let request = serde_json::to_string(&request)?;
+        self.ws.send(tokio_tungstenite::tungstenite::Message::Text(request.into())).await?;
+        Ok(())
+    }
+}
+
+impl SttMultiplexReceiver {
+    /// Returns all responses, including request errors and EOS, for caller routing.
+    /// Returns `None` only when the WebSocket itself closes.
+    pub async fn next_message(&mut self) -> Result<Option<p::Response>> {
+        match crate::client::next_message_receiver(&mut self.ws).await? {
+            Some(message) => Ok(Some(serde_json::from_str(&message)?)),
+            None => Ok(None),
+        }
+    }
 }

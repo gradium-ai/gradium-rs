@@ -418,6 +418,9 @@ pub mod stt {
         pub text_stream_names: Vec<String>,
         /// Request ID for tracking this session
         pub request_id: String,
+        /// Identifies the logical request on a multiplexed connection.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Audio data sent from client to server for transcription.
@@ -470,6 +473,9 @@ pub mod stt {
         /// Total duration processed in seconds
         pub total_duration_s: f64,
         pub vad: Vec<VadPrediction>,
+        /// Identifies the logical request on a multiplexed connection.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Transcribed text with timing information.
@@ -481,6 +487,9 @@ pub mod stt {
         pub start_s: f64,
         /// Stream identifier
         pub stream_id: u32,
+        /// Identifies the logical request on a multiplexed connection.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Marks the end of a text segment with final timing.
@@ -490,6 +499,9 @@ pub mod stt {
         pub stop_s: f64,
         /// Stream identifier
         pub stream_id: u32,
+        /// Identifies the logical request on a multiplexed connection.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Server-to-client response messages.
@@ -511,14 +523,24 @@ pub mod stt {
             code: i64,
             /// Error message
             message: String,
+            /// Identifies the logical request on a multiplexed connection.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
         },
         /// Pending transcription has been emitted.
         Flushed {
             /// Identifier from the flush request.
             flush_id: i64,
+            /// Identifies the logical request on a multiplexed connection.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
         },
         /// End of output stream
-        EndOfStream,
+        EndOfStream {
+            /// Identifies the logical request on a multiplexed connection.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
+        },
     }
 }
 
