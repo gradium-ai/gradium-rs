@@ -280,7 +280,7 @@ impl Client {
     ///
     /// # Arguments
     ///
-    /// * `base_url` - Complete base URL (e.g., "https://api.gradium.ai/api")
+    /// * `base_url` - Complete base URL (e.g., <https://api.gradium.ai/api>)
     ///
     /// # Returns
     ///
