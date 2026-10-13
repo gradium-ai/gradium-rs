@@ -330,6 +330,18 @@ pub mod stt {
         /// Custom config for the STT model in JSON format
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub json_config: Option<String>,
+        /// Stored keyword boost set to apply.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub keyword_boost_id: Option<String>,
+        /// Client identifier forwarded with audio, flush and EOS.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
+        /// Server dispatch retry window in seconds.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub retry_for_s: Option<f64>,
+        /// Whether the server closes the socket after EOS.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub close_ws_on_eos: Option<bool>,
     }
 
     impl Default for Setup {
@@ -338,6 +350,10 @@ pub mod stt {
                 model_name: "default".to_string(),
                 input_format: super::AudioFormat::Pcm,
                 json_config: None,
+                keyword_boost_id: None,
+                client_req_id: None,
+                retry_for_s: None,
+                close_ws_on_eos: None,
             }
         }
     }
@@ -362,6 +378,29 @@ pub mod stt {
             self.json_config = Some(json_config.to_string());
             self
         }
+        /// Stored keyword boost set to apply.
+        pub fn with_keyword_boost_id(mut self, keyword_boost_id: &str) -> Self {
+            self.keyword_boost_id = Some(keyword_boost_id.to_string());
+            self
+        }
+
+        /// Client identifier forwarded with audio, flush and EOS.
+        pub fn with_client_req_id(mut self, client_req_id: &str) -> Self {
+            self.client_req_id = Some(client_req_id.to_string());
+            self
+        }
+
+        /// Server dispatch retry window in seconds.
+        pub fn with_retry_for_s(mut self, retry_for_s: f64) -> Self {
+            self.retry_for_s = Some(retry_for_s);
+            self
+        }
+
+        /// Whether the server closes the socket after EOS.
+        pub fn with_close_ws_on_eos(mut self, close_ws_on_eos: bool) -> Self {
+            self.close_ws_on_eos = Some(close_ws_on_eos);
+            self
+        }
     }
 
     /// Server response indicating the STT session is ready.
@@ -379,6 +418,9 @@ pub mod stt {
         pub text_stream_names: Vec<String>,
         /// Request ID for tracking this session
         pub request_id: String,
+        /// Identifies the logical request on a multiplexed connection.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Audio data sent from client to server for transcription.
@@ -386,6 +428,9 @@ pub mod stt {
     pub struct Audio {
         /// Raw audio data bytes, base64 encoded.
         pub audio: String,
+        /// Client-supplied request identifier.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Client-to-server request messages.
@@ -396,8 +441,20 @@ pub mod stt {
         Setup(Setup),
         /// Send audio data for transcription
         Audio(Audio),
+        /// Finalize pending transcription without ending the stream.
+        Flush {
+            /// Identifier echoed by the flush acknowledgment.
+            flush_id: i64,
+            /// Client-supplied request identifier.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
+        },
         /// Signal end of audio input stream
-        EndOfStream,
+        EndOfStream {
+            /// Client-supplied request identifier.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
+        },
     }
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -416,6 +473,9 @@ pub mod stt {
         /// Total duration processed in seconds
         pub total_duration_s: f64,
         pub vad: Vec<VadPrediction>,
+        /// Identifies the logical request on a multiplexed connection.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Transcribed text with timing information.
@@ -427,6 +487,9 @@ pub mod stt {
         pub start_s: f64,
         /// Stream identifier
         pub stream_id: u32,
+        /// Identifies the logical request on a multiplexed connection.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Marks the end of a text segment with final timing.
@@ -436,6 +499,9 @@ pub mod stt {
         pub stop_s: f64,
         /// Stream identifier
         pub stream_id: u32,
+        /// Identifies the logical request on a multiplexed connection.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
     }
 
     /// Server-to-client response messages.
@@ -457,9 +523,24 @@ pub mod stt {
             code: i64,
             /// Error message
             message: String,
+            /// Identifies the logical request on a multiplexed connection.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
+        },
+        /// Pending transcription has been emitted.
+        Flushed {
+            /// Identifier from the flush request.
+            flush_id: i64,
+            /// Identifies the logical request on a multiplexed connection.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
         },
         /// End of output stream
-        EndOfStream,
+        EndOfStream {
+            /// Identifies the logical request on a multiplexed connection.
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            client_req_id: Option<String>,
+        },
     }
 }
 

@@ -461,6 +461,11 @@ impl Client {
         crate::stt::stt_stream(setup, self).await
     }
 
+    /// Opens a shared ASR connection for requests routed by `client_req_id`.
+    pub async fn stt_multiplex(&self) -> Result<crate::stt::SttMultiplexStream> {
+        crate::stt::SttMultiplexStream::connect(self).await
+    }
+
     pub(crate) async fn get(&self, endpoint: &str) -> Result<serde_json::Value> {
         let url = self.http_url(endpoint);
         let api_source = self.api_source.as_deref().unwrap_or(DEFAULT_API_SOURCE);
