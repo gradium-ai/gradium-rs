@@ -330,6 +330,18 @@ pub mod stt {
         /// Custom config for the STT model in JSON format
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub json_config: Option<String>,
+        /// Stored keyword boost set to apply.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub keyword_boost_id: Option<String>,
+        /// Client identifier forwarded with audio, flush and EOS.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
+        /// Server dispatch retry window in seconds.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub retry_for_s: Option<f64>,
+        /// Whether the server closes the socket after EOS.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub close_ws_on_eos: Option<bool>,
     }
 
     impl Default for Setup {
@@ -338,6 +350,10 @@ pub mod stt {
                 model_name: "default".to_string(),
                 input_format: super::AudioFormat::Pcm,
                 json_config: None,
+                keyword_boost_id: None,
+                client_req_id: None,
+                retry_for_s: None,
+                close_ws_on_eos: None,
             }
         }
     }
@@ -360,6 +376,29 @@ pub mod stt {
 
         pub fn with_json_config(mut self, json_config: &serde_json::Value) -> Self {
             self.json_config = Some(json_config.to_string());
+            self
+        }
+        /// Stored keyword boost set to apply.
+        pub fn with_keyword_boost_id(mut self, keyword_boost_id: &str) -> Self {
+            self.keyword_boost_id = Some(keyword_boost_id.to_string());
+            self
+        }
+
+        /// Client identifier forwarded with audio, flush and EOS.
+        pub fn with_client_req_id(mut self, client_req_id: &str) -> Self {
+            self.client_req_id = Some(client_req_id.to_string());
+            self
+        }
+
+        /// Server dispatch retry window in seconds.
+        pub fn with_retry_for_s(mut self, retry_for_s: f64) -> Self {
+            self.retry_for_s = Some(retry_for_s);
+            self
+        }
+
+        /// Whether the server closes the socket after EOS.
+        pub fn with_close_ws_on_eos(mut self, close_ws_on_eos: bool) -> Self {
+            self.close_ws_on_eos = Some(close_ws_on_eos);
             self
         }
     }
@@ -396,6 +435,11 @@ pub mod stt {
         Setup(Setup),
         /// Send audio data for transcription
         Audio(Audio),
+        /// Finalize pending transcription without ending the stream.
+        Flush {
+            /// Identifier echoed by the flush acknowledgment.
+            flush_id: i64,
+        },
         /// Signal end of audio input stream
         EndOfStream,
     }
@@ -457,6 +501,11 @@ pub mod stt {
             code: i64,
             /// Error message
             message: String,
+        },
+        /// Pending transcription has been emitted.
+        Flushed {
+            /// Identifier from the flush request.
+            flush_id: i64,
         },
         /// End of output stream
         EndOfStream,
