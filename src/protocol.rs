@@ -59,6 +59,18 @@ pub mod tts {
         pub voice: Option<String>,
         /// Optional voice ID for custom voices
         pub voice_id: Option<String>,
+        /// Base64-encoded custom voice embedding, injected without voice lookup.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub voice_emb: Option<String>,
+        /// Voice IDs for additional audio streams.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub additional_voice_ids: Vec<String>,
+        /// Base64-encoded embeddings for additional audio streams.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub additional_voice_embs: Vec<String>,
+        /// Time the server may spend retrying dispatch before setup fails.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub retry_for_s: Option<f64>,
         /// The desired audio output format
         pub output_format: super::AudioFormat,
         /// Optional pronunciation dictionary ID to customize word pronunciation
@@ -82,6 +94,10 @@ pub mod tts {
                 model_name: "default".to_string(),
                 voice: None,
                 voice_id: None,
+                voice_emb: None,
+                additional_voice_ids: Vec::new(),
+                additional_voice_embs: Vec::new(),
+                retry_for_s: None,
                 output_format: super::AudioFormat::Pcm,
                 pronunciation_id: None,
                 json_config: None,
@@ -107,6 +123,31 @@ pub mod tts {
             self
         }
 
+        /// Use a base64-encoded custom voice embedding.
+        pub fn with_voice_emb(mut self, voice_emb: &str) -> Self {
+            self.voice_emb = Some(voice_emb.to_owned());
+            self
+        }
+
+        /// Add voice IDs for additional audio streams.
+        pub fn with_additional_voice_ids(mut self, voice_ids: Vec<String>) -> Self {
+            self.additional_voice_ids = voice_ids;
+            self
+        }
+
+        /// Add base64-encoded embeddings for additional audio streams.
+        pub fn with_additional_voice_embs(mut self, voice_embs: Vec<String>) -> Self {
+            self.additional_voice_embs = voice_embs;
+            self
+        }
+
+        /// Set the server's setup dispatch retry duration.
+        pub fn with_retry_for_s(mut self, retry_for_s: f64) -> Self {
+            self.retry_for_s = Some(retry_for_s);
+            self
+        }
+
+        /// Set the desired audio output format.
         pub fn with_output_format(mut self, output_format: super::AudioFormat) -> Self {
             self.output_format = output_format;
             self
@@ -149,6 +190,7 @@ pub mod tts {
     /// Client-to-server request messages.
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     #[serde(tag = "type", rename_all = "snake_case")]
+    #[allow(clippy::large_enum_variant, reason = "Preserve the public setup request constructor")]
     pub enum Request {
         /// Initialize the TTS session with configuration
         Setup(Setup),
