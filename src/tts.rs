@@ -402,6 +402,7 @@ pub async fn tts(text: &str, setup: p::Setup, client: &Client) -> Result<TtsResu
             _ => {}
         }
     }
+    crate::client::close_completed_websocket(&mut stream.ws).await;
     let audio_streams = audio_streams
         .into_iter()
         .map(|(stream_id, data)| TtsAudioStream {

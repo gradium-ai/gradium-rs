@@ -301,6 +301,7 @@ pub async fn stt(audio: Vec<u8>, setup: p::Setup, client: &Client) -> Result<Stt
             _ => {}
         }
     }
+    crate::client::close_completed_websocket(&mut stream.ws).await;
     Ok(SttResult {
         text_with_timestamps,
         request_id: stream.request_id().to_string(),

@@ -493,6 +493,35 @@ impl Client {
     }
 }
 
+pub(crate) async fn close_completed_websocket(socket: &mut WebSocket) {
+    use futures_util::{SinkExt, StreamExt};
+
+    let shutdown = async {
+        socket
+            .close(Some(ws::protocol::CloseFrame {
+                code: ws::protocol::frame::coding::CloseCode::Normal,
+                reason: Default::default(),
+            }))
+            .await?;
+        while let Some(message) = socket.next().await {
+            if matches!(message?, ws::Message::Close(_)) {
+                socket.flush().await?;
+                break;
+            }
+        }
+        Ok::<(), ws::Error>(())
+    };
+    match tokio::time::timeout(std::time::Duration::from_secs(5), shutdown).await {
+        Ok(Ok(()) | Err(ws::Error::ConnectionClosed | ws::Error::AlreadyClosed)) => {}
+        Ok(Err(error)) => {
+            tracing::debug!(%error, "WebSocket cleanup after response completion failed")
+        }
+        Err(_) => tracing::warn!(
+            "Timed out completing WebSocket close handshake after response completion"
+        ),
+    }
+}
+
 /// Reads the next text message from a WebSocket connection.
 ///
 /// This internal helper handles WebSocket protocol messages (ping/pong) automatically
