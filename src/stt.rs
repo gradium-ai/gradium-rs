@@ -7,6 +7,15 @@ use crate::client::{Client, WebSocket};
 use crate::protocol::stt as p;
 use anyhow::Result;
 
+fn decode_response(message: &str) -> Result<p::Response> {
+    let response: p::Response = serde_json::from_str(message)?;
+    if matches!(response, p::Response::Unknown) {
+        let value: serde_json::Value = serde_json::from_str(message)?;
+        tracing::warn!(message_type = value["type"].as_str(), "Unknown STT response type");
+    }
+    Ok(response)
+}
+
 /// A streaming STT session for real-time audio transcription.
 ///
 /// This struct maintains an active WebSocket connection to the STT service
@@ -73,18 +82,21 @@ impl SttStream {
         ws.send(tokio_tungstenite::tungstenite::Message::Text(setup.into())).await?;
 
         // Wait for the Ready response from the server
-        let first_msg = crate::client::next_message(&mut ws).await?;
-        let first_msg = match first_msg {
-            None => anyhow::bail!("connection closed by server"),
-            Some(m) => m,
-        };
-        let first_msg: p::Response = serde_json::from_str(&first_msg)?;
-        let ready = match first_msg {
-            p::Response::Ready(ready) => ready,
-            p::Response::Error { code, message, .. } => {
-                anyhow::bail!("error from server {code}: {message}")
+        let ready = loop {
+            let message = crate::client::next_message(&mut ws)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("connection closed by server"))?;
+            match decode_response(&message)? {
+                p::Response::Ready(ready) => break ready,
+                p::Response::Unknown => continue,
+                p::Response::Log(log) => {
+                    tracing::warn!(level = log.level, "server log before ready: {}", log.message)
+                }
+                p::Response::Error { code, message, .. } => {
+                    anyhow::bail!("error from server {code}: {message}")
+                }
+                response => anyhow::bail!("unexpected first message from server: {response:?}"),
             }
-            _ => anyhow::bail!("unexpected first message from server: {:?}", first_msg),
         };
         Ok(Self { ws, ready, client_req_id })
     }
@@ -176,7 +188,7 @@ impl SttStream {
             None => return Ok(None),
             Some(m) => m,
         };
-        let msg: p::Response = serde_json::from_str(&msg)?;
+        let msg = decode_response(&msg)?;
 
         match &msg {
             p::Response::EndOfStream { .. } => return Ok(None),
@@ -399,7 +411,7 @@ impl SttStreamReceiver {
             None => return Ok(None),
             Some(m) => m,
         };
-        let msg: p::Response = serde_json::from_str(&msg)?;
+        let msg = decode_response(&msg)?;
 
         match &msg {
             p::Response::EndOfStream { .. } => return Ok(None),
@@ -584,7 +596,7 @@ impl SttMultiplexReceiver {
     /// Returns `None` only when the WebSocket itself closes.
     pub async fn next_message(&mut self) -> Result<Option<p::Response>> {
         match crate::client::next_message_receiver(&mut self.ws).await? {
-            Some(message) => Ok(Some(serde_json::from_str(&message)?)),
+            Some(message) => Ok(Some(decode_response(&message)?)),
             None => Ok(None),
         }
     }

@@ -3,6 +3,16 @@
 //! This module contains the types and structures used for communicating with the
 //! Gradium API via WebSocket connections.
 
+/// Lowest level of server `log` messages a session asks for in its setup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LogLevel {
+    Debug,
+    Info,
+    Warning,
+    Error,
+}
+
 /// Audio output format for TTS generation.
 #[derive(Debug, Clone)]
 pub enum AudioFormat {
@@ -86,6 +96,10 @@ pub mod tts {
         /// allowing additional requests on the same connection (multiplexing).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub close_ws_on_eos: Option<bool>,
+        /// Opt-in to server `log` messages (e.g. setup warnings): the lowest level
+        /// wanted. Unset, the server sends none.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub log_level: Option<super::LogLevel>,
     }
 
     impl Default for Setup {
@@ -103,6 +117,7 @@ pub mod tts {
                 json_config: None,
                 client_req_id: None,
                 close_ws_on_eos: None,
+                log_level: None,
             }
         }
     }
@@ -173,6 +188,12 @@ pub mod tts {
         /// after EndOfStream, enabling multiplexing.
         pub fn with_close_ws_on_eos(mut self, close: bool) -> Self {
             self.close_ws_on_eos = Some(close);
+            self
+        }
+
+        /// Asks the server for its `log` messages at `log_level` and above.
+        pub fn with_log_level(mut self, log_level: super::LogLevel) -> Self {
+            self.log_level = Some(log_level);
             self
         }
     }
@@ -273,12 +294,26 @@ pub mod tts {
         pub client_req_id: Option<String>,
     }
 
+    /// A server log line meant for the user, e.g. a warning about the setup.
+    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+    pub struct Log {
+        /// "debug", "info", "warning" or "error".
+        pub level: String,
+        /// The message.
+        pub message: String,
+        /// Optional client request ID for multiplexing
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
+    }
+
     /// Server-to-client response messages.
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     #[serde(tag = "type", rename_all = "snake_case")]
     pub enum Response {
         /// Session is ready for text input
         Ready(Ready),
+        /// A server log line meant for the user, e.g. a setup warning
+        Log(Log),
         /// Audio data chunk
         Audio(Audio),
         /// Text with timing information
@@ -342,6 +377,10 @@ pub mod stt {
         /// Whether the server closes the socket after EOS.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pub close_ws_on_eos: Option<bool>,
+        /// Opt-in to server `log` messages (e.g. setup warnings): the lowest level
+        /// wanted. Unset, the server sends none.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub log_level: Option<super::LogLevel>,
     }
 
     impl Default for Setup {
@@ -354,6 +393,7 @@ pub mod stt {
                 client_req_id: None,
                 retry_for_s: None,
                 close_ws_on_eos: None,
+                log_level: None,
             }
         }
     }
@@ -399,6 +439,12 @@ pub mod stt {
         /// Whether the server closes the socket after EOS.
         pub fn with_close_ws_on_eos(mut self, close_ws_on_eos: bool) -> Self {
             self.close_ws_on_eos = Some(close_ws_on_eos);
+            self
+        }
+
+        /// Asks the server for its `log` messages at `log_level` and above.
+        pub fn with_log_level(mut self, log_level: super::LogLevel) -> Self {
+            self.log_level = Some(log_level);
             self
         }
     }
@@ -504,12 +550,26 @@ pub mod stt {
         pub client_req_id: Option<String>,
     }
 
+    /// A server log line meant for the user, e.g. a warning about the setup.
+    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+    pub struct Log {
+        /// "debug", "info", "warning" or "error".
+        pub level: String,
+        /// The message.
+        pub message: String,
+        /// Optional client request ID for multiplexing
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
+    }
+
     /// Server-to-client response messages.
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     #[serde(tag = "type", rename_all = "snake_case")]
     pub enum Response {
         /// Session is ready for audio input
         Ready(Ready),
+        /// A server log line meant for the user, e.g. a setup warning
+        Log(Log),
         /// Voice activity detection update
         #[serde(rename = "step")]
         Vad(Vad),
@@ -541,6 +601,9 @@ pub mod stt {
             #[serde(default, skip_serializing_if = "Option::is_none")]
             client_req_id: Option<String>,
         },
+        /// A response type unsupported by this SDK version.
+        #[serde(other)]
+        Unknown,
     }
 }
 

@@ -104,6 +104,9 @@ impl TtsStream {
             match decode_response(&message)? {
                 p::Response::Ready(ready) => break ready,
                 p::Response::Unknown => continue,
+                p::Response::Log(log) => {
+                    tracing::warn!(level = log.level, "server log before ready: {}", log.message)
+                }
                 p::Response::Error { code, message, .. } => {
                     anyhow::bail!("error from server {code:?}: {message}")
                 }
