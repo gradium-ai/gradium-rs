@@ -36,3 +36,16 @@ fn unknown_stt_response_types_default_to_unknown_but_known_malformed_messages_fa
         assert!(serde_json::from_value::<stt::Response>(value).is_err());
     }
 }
+
+#[test]
+fn log_level_is_sent_only_when_set() {
+    let tts = serde_json::to_value(tts::Setup::new("voice")).unwrap();
+    let stt = serde_json::to_value(stt::Setup::new()).unwrap();
+    assert!(tts.get("log_level").is_none() && stt.get("log_level").is_none());
+
+    let level = gradium::protocol::LogLevel::Warning;
+    let tts = serde_json::to_value(tts::Setup::new("voice").with_log_level(level)).unwrap();
+    let stt = serde_json::to_value(stt::Setup::new().with_log_level(level)).unwrap();
+    assert_eq!(tts["log_level"], "warning");
+    assert_eq!(stt["log_level"], "warning");
+}
