@@ -310,6 +310,10 @@ pub async fn stt(audio: Vec<u8>, setup: p::Setup, client: &Client) -> Result<Stt
                 // Update the stop time for the last text segment
                 text_with_timestamps.last_mut().iter_mut().for_each(|v| v.stop_s = e.stop_s)
             }
+            // The one-shot helper returns no messages: log the server's.
+            p::Response::Log(log) => {
+                tracing::warn!(level = log.level, "server log: {}", log.message)
+            }
             _ => {}
         }
     }
