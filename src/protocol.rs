@@ -273,12 +273,26 @@ pub mod tts {
         pub client_req_id: Option<String>,
     }
 
+    /// A server log line meant for the user, e.g. a warning about the setup.
+    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+    pub struct Log {
+        /// "debug", "info", "warning" or "error".
+        pub level: String,
+        /// The message.
+        pub message: String,
+        /// Optional client request ID for multiplexing
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
+    }
+
     /// Server-to-client response messages.
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     #[serde(tag = "type", rename_all = "snake_case")]
     pub enum Response {
         /// Session is ready for text input
         Ready(Ready),
+        /// A server log line meant for the user, e.g. a setup warning
+        Log(Log),
         /// Audio data chunk
         Audio(Audio),
         /// Text with timing information
@@ -504,12 +518,26 @@ pub mod stt {
         pub client_req_id: Option<String>,
     }
 
+    /// A server log line meant for the user, e.g. a warning about the setup.
+    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+    pub struct Log {
+        /// "debug", "info", "warning" or "error".
+        pub level: String,
+        /// The message.
+        pub message: String,
+        /// Optional client request ID for multiplexing
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pub client_req_id: Option<String>,
+    }
+
     /// Server-to-client response messages.
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     #[serde(tag = "type", rename_all = "snake_case")]
     pub enum Response {
         /// Session is ready for audio input
         Ready(Ready),
+        /// A server log line meant for the user, e.g. a setup warning
+        Log(Log),
         /// Voice activity detection update
         #[serde(rename = "step")]
         Vad(Vad),
@@ -541,6 +569,9 @@ pub mod stt {
             #[serde(default, skip_serializing_if = "Option::is_none")]
             client_req_id: Option<String>,
         },
+        /// A response type unsupported by this SDK version.
+        #[serde(other)]
+        Unknown,
     }
 }
 
