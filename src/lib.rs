@@ -51,3 +51,14 @@ pub fn api_key_from_env() -> Option<String> {
 pub fn base_url_from_env() -> Option<String> {
     std::env::var("GRADIUM_BASE_URL").ok()
 }
+
+/// Writes a server `log` message to `tracing`, at the level the server gave it.
+/// A level this crate does not know is logged as a warning.
+pub(crate) fn log_server_message(level: &str, message: &str) {
+    match level {
+        "debug" => tracing::debug!("server log: {message}"),
+        "info" => tracing::info!("server log: {message}"),
+        "error" => tracing::error!("server log: {message}"),
+        _ => tracing::warn!("server log: {message}"),
+    }
+}

@@ -104,9 +104,7 @@ impl TtsStream {
             match decode_response(&message)? {
                 p::Response::Ready(ready) => break ready,
                 p::Response::Unknown => continue,
-                p::Response::Log(log) => {
-                    tracing::warn!(level = log.level, "server log before ready: {}", log.message)
-                }
+                p::Response::Log(log) => crate::log_server_message(&log.level, &log.message),
                 p::Response::Error { code, message, .. } => {
                     anyhow::bail!("error from server {code:?}: {message}")
                 }
@@ -402,6 +400,8 @@ pub async fn tts(text: &str, setup: p::Setup, client: &Client) -> Result<TtsResu
                     stop_s: text.stop_s,
                 });
             }
+            // The one-shot helper returns no messages: log the server's.
+            p::Response::Log(log) => crate::log_server_message(&log.level, &log.message),
             _ => {}
         }
     }
