@@ -12,7 +12,7 @@ pub type WebSocket =
 pub type WebSocketSender = futures_util::stream::SplitSink<WebSocket, ws::Message>;
 pub type WebSocketReceiver = futures_util::stream::SplitStream<WebSocket>;
 
-pub const DEFAULT_API_SOURCE: &str = "rust-client";
+pub const DEFAULT_API_SOURCE: &str = concat!("rust-client/", env!("CARGO_PKG_VERSION"));
 
 /// Client for interacting with the Gradium API.
 ///
