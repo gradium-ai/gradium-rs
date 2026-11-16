@@ -117,7 +117,9 @@ use gradium::{Client, protocol::{AudioFormat, stt}};
 async fn main() -> anyhow::Result<()> {
     let client = Client::from_env(None, None)?;
     let audio = tokio::fs::read("input.wav").await?;
-    let setup = stt::Setup::new().with_input_format(AudioFormat::Wav);
+    let setup = stt::Setup::new()
+        .with_input_format(AudioFormat::Wav)
+        .with_json_config(&serde_json::json!({ "language": "en" }));
     let result = client.stt(audio, setup).await?;
     println!("Request: {}", result.request_id());
     for segment in result.text_with_timestamps() {
@@ -138,7 +140,9 @@ use gradium::{Client, protocol::{AudioFormat, stt}};
 
 # async fn example() -> anyhow::Result<()> {
 let client = Client::from_env(None, None)?;
-let setup = stt::Setup::new().with_input_format(AudioFormat::Wav);
+let setup = stt::Setup::new()
+    .with_input_format(AudioFormat::Wav)
+    .with_json_config(&serde_json::json!({ "language": "en" }));
 let mut stream = client.stt_stream(setup).await?;
 let audio = tokio::fs::read("input.wav").await?;
 for chunk in audio.chunks(3840) {
@@ -197,6 +201,7 @@ cargo run --release --example tts -- --text "Hello, world!" --out-file output.wa
 cargo run --release --example tts -- --text "Hello, world!" --out-file output.wav --streaming
 cargo run --release --example stt -- --in-file input.wav
 cargo run --release --example stt -- --in-file input.wav --streaming
+cargo run --release --example stt -- --in-file input.wav --language fr
 ```
 
 See [examples/](examples/) for complete programs and

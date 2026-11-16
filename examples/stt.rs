@@ -14,6 +14,10 @@ struct Args {
 
     #[clap(long)]
     streaming: bool,
+
+    /// Language spoken in the audio, e.g. `en` or `fr`.
+    #[clap(long, default_value = "en")]
+    language: String,
 }
 
 #[tokio::main]
@@ -21,8 +25,9 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     let client = gradium::client::Client::from_env(args.base_url, args.api_key)?;
-    let setup =
-        gradium::protocol::stt::Setup::new().with_input_format(gradium::protocol::AudioFormat::Wav);
+    let setup = gradium::protocol::stt::Setup::new()
+        .with_input_format(gradium::protocol::AudioFormat::Wav)
+        .with_json_config(&serde_json::json!({ "language": args.language }));
 
     let raw_data = tokio::fs::read(&args.in_file).await?;
     if args.streaming {
